@@ -24,28 +24,23 @@ var (
 
 // Client provides an interface to send emails.
 type Client interface {
-	Send(
-		origin net.Addr,
-		from string,
-		to []string,
-		data []byte,
-	) error
+	Send(origin net.Addr, from string, to []string, data []byte) error
 }
 
 type logEntry struct {
 	Time  time.Time
-	IP    *string
-	From  *string
-	To    []*string
+	IP    string
+	From  string
+	To    []string
 	Error *string
 }
 
 // Log creates a log entry and prints it as JSON to STDOUT.
-func Log(origin net.Addr, from *string, to []*string, err error) {
+func Log(origin net.Addr, from string, to []string, err error) {
 	ip := origin.(*net.TCPAddr).IP.String()
 	entry := &logEntry{
 		Time: time.Now().UTC(),
-		IP:   &ip,
+		IP:   ip,
 		From: from,
 		To:   to,
 	}
@@ -62,22 +57,17 @@ func Log(origin net.Addr, from *string, to []*string, err error) {
 // If the sender is denied, all recipients are denied and an error is returned.
 // If the sender is allowed, but some of the recipients are denied, an error
 // will also be returned.
-func FilterAddresses(
-	from string,
-	to []string,
-	allowFromRegExp *regexp.Regexp,
-	denyToRegExp *regexp.Regexp,
-) (allowedRecipients []*string, deniedRecipients []*string, err error) {
-	allowedRecipients = []*string{}
-	deniedRecipients = []*string{}
+func FilterAddresses(from string, to []string, allowFromRegExp *regexp.Regexp, denyToRegExp *regexp.Regexp) (allowedRecipients []string, deniedRecipients []string, err error) {
+	allowedRecipients = []string{}
+	deniedRecipients = []string{}
 	if allowFromRegExp != nil && !allowFromRegExp.MatchString(from) {
 		err = ErrDeniedSender
 	}
 	for k := range to {
-		recipient := &(to)[k]
+		recipient := to[k]
 		// Deny all recipients if the sender address is not allowed
 		if err != nil ||
-			(denyToRegExp != nil && denyToRegExp.MatchString(*recipient)) {
+			(denyToRegExp != nil && denyToRegExp.MatchString(recipient)) {
 			deniedRecipients = append(deniedRecipients, recipient)
 		} else {
 			allowedRecipients = append(allowedRecipients, recipient)

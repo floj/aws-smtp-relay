@@ -10,25 +10,23 @@ import (
 
 	"github.com/blueimp/aws-smtp-relay/internal/auth"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
-	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 	"github.com/mhale/smtpd"
 )
 
 var (
-	addr      = flag.String("a", ":1025", "TCP listen address")
-	name      = flag.String("n", "AWS SMTP Relay", "SMTP service name")
-	host      = flag.String("h", "", "Server hostname")
-	certFile  = flag.String("c", "", "TLS cert file")
-	keyFile   = flag.String("k", "", "TLS key file")
-	startTLS  = flag.Bool("s", false, "Require TLS via STARTTLS extension")
-	onlyTLS   = flag.Bool("t", false, "Listen for incoming TLS connections only")
-	relayAPI  = flag.String("r", "ses", "Relay API to use (ses|pinpoint)")
-	setName   = flag.String("e", "", "Amazon SES Configuration Set Name")
-	ips       = flag.String("i", "", "Allowed client IPs (comma-separated)")
-	user      = flag.String("u", "", "Authentication username")
-	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
-	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
+	addr      = flag.String("listen", ":1025", "TCP listen address")
+	name      = flag.String("smtp-name", "AWS SMTP Relay", "SMTP service name")
+	host      = flag.String("host", "", "Server hostname")
+	certFile  = flag.String("tls-cert", "", "TLS cert file")
+	keyFile   = flag.String("tls-key", "", "TLS key file")
+	startTLS  = flag.Bool("starttls", false, "Require TLS via STARTTLS extension")
+	onlyTLS   = flag.Bool("tls", false, "Listen for incoming TLS connections only")
+	ips       = flag.String("ips", "", "Allowed client IPs (comma-separated)")
+	user      = flag.String("user", "", "Authentication username")
+	allowFrom = flag.String("allow", "", "Allowed sender emails regular expression")
+	denyTo    = flag.String("deny", "", "Denied recipient emails regular expression")
+	region    = flag.String("region", os.Getenv("AWS_REGION"), "aws region")
 )
 
 var ipMap map[string]bool
@@ -79,13 +77,9 @@ func configure() error {
 			return errors.New("Denied recipient emails: " + err.Error())
 		}
 	}
-	switch *relayAPI {
-	case "pinpoint":
-		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
-	case "ses":
-		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp)
-	default:
-		return errors.New("Invalid relay API: " + *relayAPI)
+	relayClient, err = sesrelay.New(allowFromRegExp, denyToRegExp, *region)
+	if err != nil {
+		return fmt.Errorf("failed to create SES relay client: %w", err)
 	}
 	if *ips != "" {
 		ipMap = make(map[string]bool)

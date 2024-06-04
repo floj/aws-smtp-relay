@@ -21,10 +21,7 @@ func pointersToValues(pointers []*string) []string {
 	return values
 }
 
-func logHelper(addr net.Addr, from *string, to []*string, err error) (
-	[]byte,
-	[]byte,
-) {
+func logHelper(addr net.Addr, from string, to []string, err error) ([]byte, []byte) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
 	originalOut := os.Stdout
@@ -52,8 +49,8 @@ func TestLog(t *testing.T) {
 		"bob@example.org",
 		"charlie@example.org",
 	}
-	from := &emails[0]
-	to := []*string{&emails[1], &emails[2]}
+	from := emails[0]
+	to := []string{emails[1], emails[2]}
 	timeBefore := time.Now()
 	out, err := logHelper(&origin, from, to, nil)
 	timeAfter := time.Now()
@@ -65,21 +62,19 @@ func TestLog(t *testing.T) {
 	if entry.Time.After(timeAfter) {
 		t.Errorf("Unexpected 'Time' log: %s", entry.Time)
 	}
-	if entry.IP == nil {
+	if entry.IP == "" {
 		t.Errorf("Unexpected 'IP' log: %v. Expected: %s", nil, "127.0.0.1")
-	} else if *entry.IP != "127.0.0.1" {
-		t.Errorf("Unexpected 'IP' log: %s. Expected: %s", *entry.IP, "127.0.0.1")
+	} else if entry.IP != "127.0.0.1" {
+		t.Errorf("Unexpected 'IP' log: %s. Expected: %s", entry.IP, "127.0.0.1")
 	}
-	if entry.From == nil {
-		t.Errorf("Unexpected 'From' log: %v. Expected: %s", nil, *from)
-	} else if *entry.From != *from {
-		t.Errorf("Unexpected 'From' log: %s. Expected: %s", *entry.From, *from)
+	if entry.From == "" {
+		t.Errorf("Unexpected 'From' log: %v. Expected: %s", nil, from)
+	} else if entry.From != from {
+		t.Errorf("Unexpected 'From' log: %s. Expected: %s", entry.From, from)
 	}
-	toVals := pointersToValues(entry.To)
-	expectedToVals := pointersToValues(to)
-	if len(toVals) != len(expectedToVals) ||
-		toVals[0] != expectedToVals[0] || toVals[1] != expectedToVals[1] {
-		t.Errorf("Unexpected 'To' log: %s. Expected: %s", toVals, expectedToVals)
+	if len(entry.To) != len(to) ||
+		entry.To[0] != to[0] || entry.To[1] != to[1] {
+		t.Errorf("Unexpected 'To' log: %s. Expected: %s", entry.To, to)
 	}
 	if entry.Error != nil {
 		t.Errorf("Unexpected 'Error' log: %s. Expected: %v", *entry.Error, nil)
@@ -98,15 +93,15 @@ func TestLogWithOriginIPv6(t *testing.T) {
 		"bob@example.org",
 		"charlie@example.org",
 	}
-	from := &emails[0]
-	to := []*string{&emails[1], &emails[2]}
+	from := emails[0]
+	to := []string{emails[1], emails[2]}
 	out, err := logHelper(&origin, from, to, nil)
 	var entry logEntry
 	json.Unmarshal(out, &entry)
-	if *entry.IP != "2001:4860:0:2001::68" {
+	if entry.IP != "2001:4860:0:2001::68" {
 		t.Errorf(
 			"Unexpected 'IP' log: %s. Expected: %s",
-			*entry.IP,
+			entry.IP,
 			"2001:4860:0:2001::68",
 		)
 	}
@@ -125,8 +120,8 @@ func TestLogWithError(t *testing.T) {
 		"bob@example.org",
 		"charlie@example.org",
 	}
-	from := &emails[0]
-	to := []*string{&emails[1], &emails[2]}
+	from := emails[0]
+	to := []string{emails[1], emails[2]}
 	out, err := logHelper(&origin, from, to, errors.New("ERROR"))
 	var entry logEntry
 	json.Unmarshal(out, &entry)
@@ -155,19 +150,18 @@ func TestFilterAddresses(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s. Expected: %v", err, nil)
 	}
-	allowedRecipientsValues := pointersToValues(allowedRecipients)
-	if len(allowedRecipients) != 2 || allowedRecipientsValues[0] != to[0] ||
-		allowedRecipientsValues[1] != to[1] {
+	if len(allowedRecipients) != 2 || allowedRecipients[0] != to[0] ||
+		allowedRecipients[1] != to[1] {
 		t.Errorf(
 			"Unexpected allowed recipients: %s. Expected: %s",
-			allowedRecipientsValues,
+			allowedRecipients,
 			to,
 		)
 	}
 	if len(deniedRecipients) != 0 {
 		t.Errorf(
 			"Unexpected denied recipients: %s. Expected: %s",
-			pointersToValues(deniedRecipients),
+			deniedRecipients,
 			[]string{},
 		)
 	}
@@ -200,16 +194,16 @@ func TestFilterAddressesWithDeniedSender(t *testing.T) {
 	if len(allowedRecipients) != 0 {
 		t.Errorf(
 			"Unexpected allowed recipients: %s. Expected: %s",
-			pointersToValues(allowedRecipients),
+			allowedRecipients,
 			[]string{},
 		)
 	}
-	deniedRecipientsValues := pointersToValues(deniedRecipients)
-	if len(deniedRecipients) != 2 || deniedRecipientsValues[0] != to[0] ||
-		deniedRecipientsValues[1] != to[1] {
+
+	if len(deniedRecipients) != 2 || deniedRecipients[0] != to[0] ||
+		deniedRecipients[1] != to[1] {
 		t.Errorf(
 			"Unexpected denied recipients: %s. Expected: %s",
-			deniedRecipientsValues,
+			deniedRecipients,
 			to,
 		)
 	}
@@ -239,19 +233,17 @@ func TestFilterAddressesWithDeniedRecipients(t *testing.T) {
 			expectedError.Error(),
 		)
 	}
-	allowedRecipientsValues := pointersToValues(allowedRecipients)
-	if len(allowedRecipients) != 1 || allowedRecipientsValues[0] != to[1] {
+	if len(allowedRecipients) != 1 || allowedRecipients[0] != to[1] {
 		t.Errorf(
 			"Unexpected allowed recipients: %s. Expected: %s",
-			allowedRecipientsValues,
+			allowedRecipients,
 			[]string{"charlie@example.org"},
 		)
 	}
-	deniedRecipientsValues := pointersToValues(deniedRecipients)
-	if len(deniedRecipients) != 1 || deniedRecipientsValues[0] != to[0] {
+	if len(deniedRecipients) != 1 || deniedRecipients[0] != to[0] {
 		t.Errorf(
 			"Unexpected denied recipients: %s. Expected: %s",
-			deniedRecipientsValues,
+			deniedRecipients,
 			[]string{"bob@example.org"},
 		)
 	}

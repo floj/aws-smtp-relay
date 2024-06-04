@@ -8,8 +8,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/ses"
-	"github.com/aws/aws-sdk-go/service/ses/sesiface"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
@@ -19,7 +18,7 @@ var testData = struct {
 }{}
 
 type mockSESAPI struct {
-	sesiface.SESAPI
+	*ses.Client
 }
 
 func (m *mockSESAPI) SendRawEmail(input *ses.SendRawEmailInput) (
@@ -30,16 +29,7 @@ func (m *mockSESAPI) SendRawEmail(input *ses.SendRawEmailInput) (
 	return nil, testData.err
 }
 
-func sendHelper(
-	origin net.Addr,
-	from string,
-	to []string,
-	data []byte,
-	configurationSetName *string,
-	allowFromRegExp *regexp.Regexp,
-	denyToRegExp *regexp.Regexp,
-	apiErr error,
-) (email *ses.SendRawEmailInput, out []byte, err []byte, sendErr error) {
+func sendHelper(origin net.Addr, from string, to []string, data []byte, configurationSetName string, allowFromRegExp *regexp.Regexp, denyToRegExp *regexp.Regexp, apiErr error) (email *ses.SendRawEmailInput, out []byte, err []byte, sendErr error) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
 	originalOut := os.Stdout
@@ -54,8 +44,7 @@ func sendHelper(
 	os.Stderr = errWriter
 	func() {
 		c := Client{
-			sesAPI:          &mockSESAPI{},
-			setName:         configurationSetName,
+			sesAPI:          nil,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
 		}
@@ -75,7 +64,7 @@ func TestSend(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	input, out, err, _ := sendHelper(&origin, from, to, data, setName, nil, nil, nil)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -90,10 +79,10 @@ func TestSend(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destinations[0] != to[0] {
+	if input.Destinations[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destinations[0],
+			input.Destinations[0],
 			to[0],
 		)
 	}
@@ -115,7 +104,7 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	input, out, err, _ := sendHelper(&origin, from, to, data, setName, nil, nil, nil)
 	if len(input.Destinations) != 2 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -123,10 +112,10 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 			2,
 		)
 	}
-	if *input.Destinations[0] != to[0] {
+	if input.Destinations[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destinations[0],
+			input.Destinations[0],
 			to[0],
 		)
 	}
@@ -145,7 +134,7 @@ func TestSendWithDeniedSender(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile(`^admin@example\.org$`)
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, setName, regexp, nil, nil)
 	if input != nil {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -171,7 +160,7 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile(`^bob@example\.org$`)
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, setName, nil, regexp, nil)
 	if len(input.Destinations) != 1 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -179,10 +168,10 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destinations[0] != to[1] {
+	if input.Destinations[0] != to[1] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destinations[0],
+			input.Destinations[0],
 			to[1],
 		)
 	}
@@ -204,7 +193,7 @@ func TestSendWithApiError(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	apiErr := errors.New("API failure")
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, nil, apiErr)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, setName, nil, nil, apiErr)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -219,10 +208,10 @@ func TestSendWithApiError(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destinations[0] != to[0] {
+	if input.Destinations[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destinations[0],
+			input.Destinations[0],
 			to[0],
 		)
 	}
@@ -242,16 +231,15 @@ func TestSendWithApiError(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	setName := ""
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
-	client := New(&setName, allowFromRegExp, denyToRegExp)
+	client, err := New(allowFromRegExp, denyToRegExp, "eu-cental-1")
+	if err != nil {
+		t.Errorf("Got error when creating SES client")
+	}
 	_, ok := interface{}(client).(relay.Client)
 	if !ok {
 		t.Error("Unexpected: client is not a relay.Client")
-	}
-	if client.setName != &setName {
-		t.Errorf("Unexpected setName: %s", *client.setName)
 	}
 	if client.allowFromRegExp != allowFromRegExp {
 		t.Errorf("Unexpected allowFromRegExp: %s", client.allowFromRegExp)

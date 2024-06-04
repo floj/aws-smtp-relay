@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 )
 
@@ -136,9 +135,8 @@ func resetHelper() {
 	*keyFile = ""
 	*startTLS = false
 	*onlyTLS = false
-	*relayAPI = "ses"
-	*setName = ""
 	*ips = ""
+	*region = "eu-central-1"
 	*user = ""
 	*allowFrom = ""
 	*denyTo = ""
@@ -169,37 +167,12 @@ func TestConfigure(t *testing.T) {
 	if len(ipMap) != 0 {
 		t.Errorf("Unexpected IP map size: %d", len(ipMap))
 	}
-	_, ok := interface{}(relayClient).(sesrelay.Client)
+	_, ok := interface{}(relayClient).(*sesrelay.Client)
 	if !ok {
 		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
 	}
 	if string(bcryptHash) != "" {
 		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-}
-
-func TestConfigureWithPinpointRelay(t *testing.T) {
-	resetHelper()
-	*relayAPI = "pinpoint"
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	_, ok := interface{}(relayClient).(pinpointrelay.Client)
-	if !ok {
-		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
-	}
-}
-
-func TestConfigureWithInvalidRelay(t *testing.T) {
-	resetHelper()
-	*relayAPI = "invalid"
-	err := configure()
-	if err == nil {
-		t.Error("Unexpected nil error")
-	}
-	if relayClient != nil {
-		t.Errorf("Unexpected relay client: %s", relayClient)
 	}
 }
 
