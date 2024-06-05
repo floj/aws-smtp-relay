@@ -31,13 +31,7 @@ func validMAC(fn func() hash.Hash, message, messageMAC, key []byte) bool {
 }
 
 // Handler validates remote IPs and user credentials.
-func (a Authentication) Handler(
-	remoteAddr net.Addr,
-	mechanism string,
-	username []byte,
-	password []byte,
-	shared []byte,
-) (bool, error) {
+func (a Authentication) Handler(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
 	if a.err != nil {
 		return false, a.err
 	}
@@ -70,12 +64,7 @@ func (a Authentication) Handler(
 // user is required for LOGIN, PLAIN and CRAM-MD5 authentication.
 // hash (recommended) or pass is required for LOGIN and PLAIN authentication.
 // pass is required for CRAM-MD5 authentication (requires plain text password).
-func New(
-	ips map[string]bool,
-	user string,
-	hash []byte,
-	pass []byte,
-) Authentication {
+func New(ips map[string]bool, user string, hash []byte, pass []byte) Authentication {
 	var err error
 	if len(pass) > 0 && len(hash) == 0 {
 		hash, err = bcrypt.GenerateFromPassword(pass, 10)

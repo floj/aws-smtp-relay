@@ -32,20 +32,14 @@
 ## Background
 
 [Amazon SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
-and
-[Amazon Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html)
-both provide an API and an SMTP interface to send emails:
 
 - [SES Email API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
 - [SES SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
-- [Pinpoint EmailAPI](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-sdk.html)
-- [Pinpoint SMTP interface](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-smtp.html)
 
 The SMTP interface is useful for applications that must use SMTP to send emails,
 but it requires providing a set of SMTP credentials:
 
 - [SES SMTP Credentials](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/smtp-credentials.html)
-- [Pinpoint SMTP Credentials](https://docs.aws.amazon.com/pinpoint/latest/userguide/channels-email-send-smtp.html#channels-email-send-smtp-credentials)
 
 For security reasons, using
 [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) is
@@ -59,20 +53,13 @@ that relays emails via SES or Pinpoint API using IAM roles.
 This repository provides a sample [Dockerfile](Dockerfile) to build and run the
 project in a container environment.
 
-A prebuilt Docker image is also available on
-[Docker Hub](https://hub.docker.com/r/blueimp/aws-smtp-relay/):
-
-```sh
-docker run blueimp/aws-smtp-relay --help
-```
-
 ## Installation
 
 The `aws-smtp-relay` binary can be installed from source via
 [go get](https://golang.org/cmd/go/):
 
 ```sh
-go get github.com/blueimp/aws-smtp-relay
+go get github.com/floj/aws-smtp-relay
 ```
 
 ## Usage
@@ -94,30 +81,31 @@ aws-smtp-relay --help
 
 ```
 Usage of aws-smtp-relay:
-  -a string
+  -listen string
         TCP listen address (default ":1025")
-  -c string
-        TLS cert file
-  -d string
-        Denied recipient emails regular expression
-  -e string
-        Amazon SES Configuration Set Name
-  -h string
-        Server hostname
-  -i string
-        Allowed client IPs (comma-separated)
-  -k string
-        TLS key file
-  -l string
-        Allowed sender emails regular expression
-  -n string
+  -name string
         SMTP service name (default "AWS SMTP Relay")
-  -r string
-        Relay API to use (ses|pinpoint) (default "ses")
-  -s    Require TLS via STARTTLS extension
-  -t    Listen for incoming TLS connections only
-  -u string
+  -host string
+        Server hostname
+  -tls-cert string
+        TLS cert file
+  -tls-key string
+        TLS key file
+  -require-starttls
+        Require TLS via STARTTLS extension
+  -tls-only
+        Listen for incoming TLS connections only
+  -allow-ips string
+        Allowed client IPs (comma-separated)
+  -user string
         Authentication username
+  -allow-from string
+        Allowed sender emails regular expression
+  -deny-to string
+        Denied recipient emails regular expression
+  -region string
+        AWS region, defaults to AWS_REGION from environment
+
 ```
 
 ### Authentication
@@ -143,7 +131,7 @@ Authentication can be enabled for `LOGIN` and `PLAIN` mechanisms by configuring
 export BCRYPT_HASH=$(htpasswd -bnBC 10 '' password | tr -d ':\n')
 export TLS_KEY_PASS="$PASSPHRASE"
 
-aws-smtp-relay -c tls/default.crt -k tls/default.key -u username
+aws-smtp-relay -tls-cert tls/default.crt -tls-key tls/default.key -user username
 ```
 
 If the password is provided as plain text `PASSWORD` environment variable, it
@@ -175,7 +163,7 @@ To limit the allowed IP addresses, supply a comma-separated list via `-i ips`
 option:
 
 ```sh
-aws-smtp-relay -i 127.0.0.1,::1
+aws-smtp-relay -listen 127.0.0.1,::1
 ```
 
 **Please note**:
@@ -216,13 +204,13 @@ Provide the key file passphrase as `TLS_KEY_PASS` environment variable and the
 cert and key file as command-line arguments:
 
 ```sh
-TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
+TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -tls-cert tls/default.crt -tls-key tls/default.key
 ```
 
 **Please note**:
 
-> It is recommended to require TLS via `STARTTLS` extension (`-s` option flag)
-> or to configure the server to listen for incoming TLS connections only (`-t`
+> It is recommended to require TLS via `STARTTLS` extension (`-require-starttls` option flag)
+> or to configure the server to listen for incoming TLS connections only (`-tls-only`
 > option flag).
 
 ### Filtering
@@ -230,11 +218,11 @@ TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
 #### Senders
 
 To limit the allowed sender email addresses, provide an allow list as
-[regular expression](https://golang.org/pkg/regexp/syntax/) via `-l regexp`
+[regular expression](https://golang.org/pkg/regexp/syntax/) via `-allow-from regexp`
 option:
 
 ```sh
-aws-smtp-relay -l '@example\.org$'
+aws-smtp-relay -allow-from '@example\.org$'
 ```
 
 By default, all sender email addresses are allowed.
@@ -242,11 +230,11 @@ By default, all sender email addresses are allowed.
 #### Recipients
 
 To deny certain recipient email addresses, provide a deny list as
-[regular expression](https://golang.org/pkg/regexp/syntax/) via `-d regexp`
+[regular expression](https://golang.org/pkg/regexp/syntax/) via `-deny-to regexp`
 option:
 
 ```sh
-aws-smtp-relay -d 'admin@example\.org$'
+aws-smtp-relay -deny-to 'admin@example\.org$'
 ```
 
 By default, all recipient email addresses are allowed.
@@ -385,7 +373,7 @@ make clean
 
 - [golang.org/x/crypto](https://pkg.go.dev/golang.org/x/crypto)
 - [github.com/mhale/smtpd](https://github.com/mhale/smtpd)
-- [github.com/aws/aws-sdk-go](https://github.com/aws/aws-sdk-go)
+- [github.com/aws/aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2)
 
 ## License
 
